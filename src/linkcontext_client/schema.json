@@ -1,0 +1,1057 @@
+{
+  "permissionModel": "shared",
+  "limits": {
+    "timeoutMs": 2000,
+    "maxRows": 500,
+    "maxBytes": 1048576
+  },
+  "tables": [
+    {
+      "name": "audit_log",
+      "columns": [
+        {
+          "name": "action",
+          "type": "TEXT"
+        },
+        {
+          "name": "actor",
+          "type": "TEXT"
+        },
+        {
+          "name": "changes",
+          "type": "JSON"
+        },
+        {
+          "name": "collection_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "record",
+          "type": "TEXT"
+        },
+        {
+          "name": "summary",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "bookmarks",
+      "columns": [
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "list_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "notes",
+          "type": "TEXT"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "target_collection",
+          "type": "TEXT"
+        },
+        {
+          "name": "target_record_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "title",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "companies",
+      "columns": [
+        {
+          "name": "about",
+          "type": "TEXT"
+        },
+        {
+          "name": "company_size",
+          "type": "TEXT"
+        },
+        {
+          "name": "company_urn",
+          "type": "TEXT"
+        },
+        {
+          "name": "completeness",
+          "type": "TEXT"
+        },
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "crm_organization_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "employee_count_on_linkedin",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "first_seen_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "follower_count",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "founded_year",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "headquarters",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "industry",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_scraped_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_seen_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_sync_run",
+          "type": "TEXT"
+        },
+        {
+          "name": "linkedin_url",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "tagline",
+          "type": "TEXT"
+        },
+        {
+          "name": "universal_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "website",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "connections",
+      "columns": [
+        {
+          "name": "connected_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_sync_run",
+          "type": "TEXT"
+        },
+        {
+          "name": "notes",
+          "type": "TEXT"
+        },
+        {
+          "name": "profile",
+          "type": "TEXT"
+        },
+        {
+          "name": "relationship_status",
+          "type": "TEXT"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "experiences",
+      "columns": [
+        {
+          "name": "company",
+          "type": "TEXT"
+        },
+        {
+          "name": "company_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "employment_type",
+          "type": "TEXT"
+        },
+        {
+          "name": "end_date",
+          "type": "TEXT"
+        },
+        {
+          "name": "experience_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_current",
+          "type": "BOOLEAN"
+        },
+        {
+          "name": "location",
+          "type": "TEXT"
+        },
+        {
+          "name": "profile",
+          "type": "TEXT"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "start_date",
+          "type": "TEXT"
+        },
+        {
+          "name": "title",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "invitations",
+      "columns": [
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "direction",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "invitation_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_sync_run",
+          "type": "TEXT"
+        },
+        {
+          "name": "message",
+          "type": "TEXT"
+        },
+        {
+          "name": "profile",
+          "type": "TEXT"
+        },
+        {
+          "name": "resolved_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "sent_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "messages",
+      "columns": [
+        {
+          "name": "attachments_json",
+          "type": "JSON"
+        },
+        {
+          "name": "body",
+          "type": "TEXT"
+        },
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "crm_message_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "direction",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_sync_run",
+          "type": "TEXT"
+        },
+        {
+          "name": "message_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "sender",
+          "type": "TEXT"
+        },
+        {
+          "name": "sent_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "thread",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "notifications",
+      "columns": [
+        {
+          "name": "actor_company",
+          "type": "TEXT"
+        },
+        {
+          "name": "actor_profile",
+          "type": "TEXT"
+        },
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "headline",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_read_on_linkedin",
+          "type": "BOOLEAN"
+        },
+        {
+          "name": "kind",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_sync_run",
+          "type": "TEXT"
+        },
+        {
+          "name": "notification_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "occurred_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "snippet",
+          "type": "TEXT"
+        },
+        {
+          "name": "target_post",
+          "type": "TEXT"
+        },
+        {
+          "name": "target_url",
+          "type": "TEXT"
+        },
+        {
+          "name": "timestamp_precision",
+          "type": "TEXT"
+        },
+        {
+          "name": "triage_status",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "post_interactions",
+      "columns": [
+        {
+          "name": "actor",
+          "type": "TEXT"
+        },
+        {
+          "name": "body",
+          "type": "TEXT"
+        },
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "interaction_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "kind",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_sync_run",
+          "type": "TEXT"
+        },
+        {
+          "name": "occurred_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "parent_comment_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "post",
+          "type": "TEXT"
+        },
+        {
+          "name": "reaction_type",
+          "type": "TEXT"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "posts",
+      "columns": [
+        {
+          "name": "author_company",
+          "type": "TEXT"
+        },
+        {
+          "name": "author_profile",
+          "type": "TEXT"
+        },
+        {
+          "name": "author_type",
+          "type": "TEXT"
+        },
+        {
+          "name": "body",
+          "type": "TEXT"
+        },
+        {
+          "name": "comment_count",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "feed_reason",
+          "type": "TEXT"
+        },
+        {
+          "name": "first_seen_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_seen_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_sync_run",
+          "type": "TEXT"
+        },
+        {
+          "name": "media_type",
+          "type": "TEXT"
+        },
+        {
+          "name": "permalink",
+          "type": "TEXT"
+        },
+        {
+          "name": "post_urn",
+          "type": "TEXT"
+        },
+        {
+          "name": "published_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "reaction_count",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "repost_count",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "shared_title",
+          "type": "TEXT"
+        },
+        {
+          "name": "shared_url",
+          "type": "TEXT"
+        },
+        {
+          "name": "social_actor",
+          "type": "TEXT"
+        },
+        {
+          "name": "timestamp_precision",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "reposted_post",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "profiles",
+      "columns": [
+        {
+          "name": "about",
+          "type": "TEXT"
+        },
+        {
+          "name": "completeness",
+          "type": "TEXT"
+        },
+        {
+          "name": "connected_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "connection_count_label",
+          "type": "TEXT"
+        },
+        {
+          "name": "connection_degree",
+          "type": "TEXT"
+        },
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "crm_person_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "current_company",
+          "type": "TEXT"
+        },
+        {
+          "name": "current_title",
+          "type": "TEXT"
+        },
+        {
+          "name": "education_json",
+          "type": "JSON"
+        },
+        {
+          "name": "email",
+          "type": "TEXT"
+        },
+        {
+          "name": "first_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "first_seen_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "follower_count",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "full_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "headline",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "industry",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_scraped_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_seen_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_sync_run",
+          "type": "TEXT"
+        },
+        {
+          "name": "linkedin_url",
+          "type": "TEXT"
+        },
+        {
+          "name": "location",
+          "type": "TEXT"
+        },
+        {
+          "name": "member_urn",
+          "type": "TEXT"
+        },
+        {
+          "name": "phone",
+          "type": "TEXT"
+        },
+        {
+          "name": "pronouns",
+          "type": "TEXT"
+        },
+        {
+          "name": "public_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "skills_json",
+          "type": "JSON"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "website",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "sync_runs",
+      "columns": [
+        {
+          "name": "completed_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "lookback_since",
+          "type": "TEXT"
+        },
+        {
+          "name": "max_items",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "newest_observed_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "notes",
+          "type": "TEXT"
+        },
+        {
+          "name": "oldest_observed_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "started_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "stats_json",
+          "type": "JSON"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "surface",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "thread_participants",
+      "columns": [
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "profile",
+          "type": "TEXT"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "role",
+          "type": "TEXT"
+        },
+        {
+          "name": "thread",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "threads",
+      "columns": [
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "crm_deal_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_group",
+          "type": "BOOLEAN"
+        },
+        {
+          "name": "is_inmail",
+          "type": "BOOLEAN"
+        },
+        {
+          "name": "is_sponsored",
+          "type": "BOOLEAN"
+        },
+        {
+          "name": "last_activity_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_message_preview",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_sync_run",
+          "type": "TEXT"
+        },
+        {
+          "name": "primary_profile",
+          "type": "TEXT"
+        },
+        {
+          "name": "revision",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "thread_urn",
+          "type": "TEXT"
+        },
+        {
+          "name": "title",
+          "type": "TEXT"
+        },
+        {
+          "name": "unread_count",
+          "type": "NUMERIC"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_by",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "name": "user_directory",
+      "columns": [
+        {
+          "name": "created",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated",
+          "type": "TEXT"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+onRecordCreateRequest((e) => require(`${__hooks}/integrity.js`).write(e), 'sync_runs', 'companies', 'profiles', 'experiences', 'connections', 'invitations', 'posts', 'post_interactions', 'notifications', 'threads', 'thread_participants', 'messages', 'bookmarks');
+onRecordUpdateRequest((e) => require(`${__hooks}/integrity.js`).write(e), 'sync_runs', 'companies', 'profiles', 'experiences', 'connections', 'invitations', 'posts', 'post_interactions', 'notifications', 'threads', 'thread_participants', 'messages', 'bookmarks');
+onRecordDeleteRequest((e) => { throw new ForbiddenError('Records are retained for history; archive or cancel them instead.'); }, 'sync_runs', 'companies', 'profiles', 'experiences', 'connections', 'invitations', 'posts', 'post_interactions', 'notifications', 'threads', 'thread_participants', 'messages', 'bookmarks', 'audit_log', 'user_directory');
+onRecordCreateRequest((e) => { throw new ForbiddenError('Audit log is server managed.'); }, 'audit_log');
+onRecordUpdateRequest((e) => { throw new ForbiddenError('Audit log is immutable.'); }, 'audit_log');

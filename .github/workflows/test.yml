@@ -1,0 +1,84 @@
+name: LinkedIn context integration
+on:
+  # image.yml calls this workflow before it publishes an image.
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: linkcontext
+          persist-credentials: false
+      - name: Install packaged CLI
+        run: |
+          python3 -m venv "$RUNNER_TEMP/context-client"
+          "$RUNNER_TEMP/context-client/bin/pip" install ./linkcontext
+          echo "$RUNNER_TEMP/context-client/bin" >> "$GITHUB_PATH"
+      - name: Test deployment orchestration
+        run: python3 linkcontext/tests/deploy_workflow.py
+      - name: Python runtime safety
+        run: python3 linkcontext/tests/entrypoint.py
+      - name: Test packaged resources and launcher
+        run: python3 linkcontext/tests/packaging.py
+      - name: Read server revision
+        id: server
+        shell: bash
+        run: |
+          revision=$(cat linkcontext/POCKETCONTEXT_VERSION)
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: pocketcontext/pocketcontext
+          ref: ${{ steps.server.outputs.revision }}
+          path: pocketcontext
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: pocketcontext/go.mod
+          cache-dependency-path: pocketcontext/go.sum
+      - name: Build server
+        working-directory: pocketcontext
+        # The flags of pocketcontext's Makefile.
+        run: CGO_ENABLED=1 go build -tags sqlite_math_functions -o bin/pocketcontext ./cmd/pocketcontext
+      - name: Test LinkedIn context
+        run: python3 linkcontext/tests/integration.py --binary pocketcontext/bin/pocketcontext
+      - name: Test authentication and deployment settings
+        run: python3 linkcontext/tests/auth.py --binary pocketcontext/bin/pocketcontext
+      - name: Test Google OAuth claims and Workspace signup
+        run: python3 linkcontext/tests/oauth_integration.py --binary pocketcontext/bin/pocketcontext
+      - name: Test first-start deployment settings
+        run: python3 linkcontext/tests/deploy.py --binary pocketcontext/bin/pocketcontext
+      - name: Test installable skill
+        run: python3 linkcontext/tests/skill.py --binary pocketcontext/bin/pocketcontext
+      - name: Test OAuth client
+        run: python3 linkcontext/tests/oauth.py
+      - name: Test opt-in trace isolation
+        run: python3 linkcontext/tests/tracing.py --binary pocketcontext/bin/pocketcontext
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Build and test authenticated reader
+        run: |
+          npm install --global pnpm@10.33.2
+          cd linkcontext/ui
+          pnpm install --frozen-lockfile
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm exec playwright install --with-deps chromium
+          pnpm e2e
+          cd ../..
+          python3 linkcontext/tests/reader.py --binary pocketcontext/bin/pocketcontext --browser
+
+      - name: Maintenance freeze and frozen startup
+        run: |
+          python3 linkcontext/tests/maintenance.py --binary pocketcontext/bin/pocketcontext
+          python3 linkcontext/tests/object_storage.py --binary pocketcontext/bin/pocketcontext

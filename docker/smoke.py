@@ -1,0 +1,552 @@
+#!/usr/bin/env python3
+"""Checks of the LinkContext container image. Python 3 standard library and the docker CLI only.
+
+  python3 docker/smoke.py smoke   --image IMAGE   start as ONCE does, provision an user, exercise REST and SQL, stop, start again
+  python3 docker/smoke.py config  --image IMAGE   startup errors for missing or unusable Litestream configuration
+  python3 docker/smoke.py restore --image IMAGE   replicate to MinIO, destroy container and volume, restore into an empty volume
+
+Every step prints a `==>` line before it runs and every docker command is printed. Secrets reach docker through the
+environment (`-e NAME`), never through the command line, and are masked in everything this script prints. On failure
+the script prints the masked logs of every container it started, then removes its containers, volumes, and network.
+"""
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+
+ROOT = Path(__file__).resolve().parent.parent
+# Build the withdrawn community image from pinned upstream sources for CI only.
+MINIO_IMAGE = 'linkcontext-minio-fixture:9e49d5e-7394ce0'
+STOP_LIMIT = 10  # seconds. `docker stop` waits 10 seconds by default before it kills.
+JWT = re.compile(r'eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}')
+
+hidden = []      # secret values: masked in output, searched for in container logs
+containers = []  # every container started, for the failure report and cleanup
+volumes = []
+networks = []
+
+
+class Failure(Exception):
+    pass
+
+
+def secret(value):
+    """Register a secret value. Returns it."""
+    if value and value not in hidden:
+        hidden.append(value)
+        if os.environ.get('GITHUB_ACTIONS') == 'true':
+            print(f'::add-mask::{value}', flush=True)
+    return value
+
+
+def mask(text):
+    for value in hidden:
+        text = text.replace(value, '***')
+    return JWT.sub('***JWT***', text)
+
+
+def say(text=''):
+    print(mask(text), flush=True)
+
+
+def step(text):
+    say(f'==> {text}')
+
+
+def check(condition, text):
+    if not condition:
+        raise Failure(text)
+    say(f'    ok: {text}')
+
+
+def docker(*args, env=None, ok=True, timeout=300):
+    """Run docker. Returns (exit status, stdout + stderr). `env` adds variables to docker's own environment."""
+    say('    $ docker ' + ' '.join(args))
+    try:
+        done = subprocess.run(['docker', *args], env={**os.environ, **(env or {})}, text=True, errors='replace',
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        raise Failure(f'docker {args[0]} did not finish within {timeout} seconds. Output so far:\n{error.stdout or ""}')
+    if ok and done.returncode != 0:
+        raise Failure(f'docker {args[0]} exited with status {done.returncode}:\n{done.stdout}')
+    return done.returncode, done.stdout
+
+
+def logs(name):
+    return docker('logs', name, ok=False)[1]
+
+
+def state(name):
+    """Returns (running, exit status)."""
+    status, text = docker('inspect', '-f', '{{.State.Running}} {{.State.ExitCode}} {{.State.OOMKilled}}', name, ok=False)
+    if status != 0:
+        raise Failure(f'container {name} cannot be inspected:\n{text}')
+    running, code, oom = text.split()
+    check(oom == 'false', f'{name} was not killed for memory')
+    return running == 'true', int(code)
+
+
+def run_app(image, name, volume, env, network=None):
+    """Start the image detached with a named volume at /storage and port 80 published on a free local port."""
+    docker('volume', 'create', volume)
+    volumes.append(volume)
+    args = ['run', '-d', '--name', name, '-p', '127.0.0.1::80', '-v', f'{volume}:/storage']
+    if network:
+        args += ['--network', network]
+    for key in env:
+        args += ['-e', key]
+    containers.append(name)
+    docker(*args, image, env=env)
+
+
+def http(method, url, body=None, token=None, headers=None):
+    """Returns (status, headers, parsed JSON or text). Status 0 means no HTTP response."""
+    request = urllib.request.Request(url, method=method, data=None if body is None else json.dumps(body).encode())
+    if body is not None:
+        request.add_header('Content-Type', 'application/json')
+    if token:
+        request.add_header('Authorization', token)
+    for key, value in (headers or {}).items():
+        request.add_header(key, value)
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            status, reply, raw = response.status, response.headers, response.read()
+    except urllib.error.HTTPError as error:
+        status, reply, raw = error.code, error.headers, error.read()
+    except (OSError, urllib.error.URLError) as error:
+        return 0, {}, str(error)
+    text = raw.decode(errors='replace')
+    try:
+        return status, reply, json.loads(text)
+    except ValueError:
+        return status, reply, text
+
+
+def wait_up(name, limit=120):
+    """Wait for GET /up. Fails early when the container exits. Returns the base URL."""
+    step(f'waiting up to {limit} seconds for GET /up on {name}')
+    deadline, last = time.time() + limit, ''
+    while time.time() < deadline:
+        running, code = state_quiet(name)
+        if not running:
+            raise Failure(f'{name} exited with status {code} before /up answered')
+        base = base_url_quiet(name)
+        if base:
+            status, _, body = http('GET', base + '/up')
+            last = f'status {status}, body {str(body)[:200]!r}'
+            if status == 200:
+                check(True, f'/up answered 200 without credentials at {base}')
+                return base
+        time.sleep(1)
+    raise Failure(f'/up did not answer 200 within {limit} seconds; last answer: {last}')
+
+
+def state_quiet(name):
+    done = subprocess.run(['docker', 'inspect', '-f', '{{.State.Running}} {{.State.ExitCode}}', name], text=True, capture_output=True)
+    if done.returncode != 0:
+        raise Failure(f'container {name} cannot be inspected: {done.stderr}')
+    running, code = done.stdout.split()
+    return running == 'true', int(code)
+
+
+def base_url_quiet(name):
+    done = subprocess.run(['docker', 'port', name, '80/tcp'], text=True, capture_output=True)
+    match = re.search(r'127\.0\.0\.1:(\d+)', done.stdout)
+    return f'http://127.0.0.1:{match.group(1)}' if match else ''
+
+
+def superuser_token(base, email, password):
+    status, _, body = http('POST', base + '/api/collections/_superusers/auth-with-password', {'identity': email, 'password': password})
+    if status != 200 or not isinstance(body, dict) or not body.get('token'):
+        raise Failure(f'superuser login answered {status}: {str(body)[:500]}')
+    check(True, 'superuser login with LINKCONTEXT_SUPERUSER_EMAIL and LINKCONTEXT_SUPERUSER_PASSWORD')
+    return secret(body['token'])
+
+
+def provision_user(base, token, email, password):
+    status, _, body = http('POST', base + '/api/collections/users/records', token=token,
+                           body={'name': 'Image check user', 'email': email, 'password': password, 'passwordConfirm': password})
+    if status != 200 or not isinstance(body, dict) or not body.get('id'):
+        raise Failure(f'creating the user with the superuser token answered {status}: {str(body)[:500]}')
+    check(True, 'user created with the superuser token')
+    return body['id']
+
+
+class Client:
+    """An ordinary default-users identity using REST writes and authenticated SQL reads."""
+
+    def __init__(self, base, email, password, home):
+        self.base = base
+        status, _, body = http('POST', base + '/api/collections/users/auth-with-password',
+                               {'identity': email, 'password': password})
+        check(status == 200 and bool(body.get('token')), 'provisioned user can authenticate')
+        self.token = secret(body['token'])
+        self.user = body['record']
+
+    def run(self, command, *args):
+        if command == 'whoami':
+            return json.dumps(self.user)
+        if command == 'check':
+            status, _, body = http('GET', self.base + '/api/context/schema', token=self.token)
+        elif command == 'create':
+            status, _, body = http('POST', self.base + '/api/collections/' + args[0] + '/records',
+                                   json.loads(args[1]), token=self.token)
+        else:
+            raise Failure('unsupported smoke client operation')
+        check(status == 200, f'{command} answered 200')
+        return json.dumps(body)
+
+    def sql(self, query):
+        status, _, body = http('POST', self.base + '/api/context/query', {'sql': query}, token=self.token)
+        check(status == 200, 'authenticated SQL query succeeded')
+        return body['rows']
+
+
+def write_record(client, user_id):
+    record = json.loads(client.run('create', 'companies', json.dumps({'name': 'Synthetic image company'})))
+    return record['id'], None
+
+
+def check_records(client, company, unused):
+    rows = client.sql(f"SELECT name FROM companies WHERE id = '{company}'")
+    check(rows == [['Synthetic image company']], 'synthetic company survives persistence and restore')
+
+
+def check_logs(name, text=None):
+    text = logs(name) if text is None else text
+    found = [index for index, value in enumerate(hidden) if value in text]
+    check(not found, f'the logs of {name} contain none of the {len(hidden)} secret values of this run (matches: {len(found)})')
+    check(not JWT.search(text), f'the logs of {name} contain no token')
+    return text
+
+
+def stop(name):
+    step(f'docker stop {name}: the server must exit by itself within {STOP_LIMIT} seconds with status 0')
+    start = time.time()
+    docker('stop', '-t', '30', name)
+    elapsed = time.time() - start
+    running, code = state(name)
+    check(not running and elapsed < STOP_LIMIT, f'stopped in {elapsed:.1f} seconds')
+    check(code == 0, f'exit status 0 (got {code}; 137 means it was killed, 143 that the signal was not handled)')
+
+
+def once_env(extra=None):
+    """The variables ONCE injects, with throwaway values, plus a superuser."""
+    env = {
+        'BASE_URL': 'https://link.example.test', 'SECRET_KEY_BASE': secret(secrets.token_hex(32)), 'DISABLE_SSL': 'true', 'NUM_CPUS': '2',
+        'SMTP_ADDRESS': 'smtp.example.test', 'SMTP_PORT': '587', 'SMTP_USERNAME': 'image-check', 'SMTP_PASSWORD': secret(secrets.token_urlsafe(24)),
+        'MAILER_FROM_ADDRESS': 'Info <info@notifications.example.test>',
+        'LINKCONTEXT_SUPERUSER_EMAIL': 'operator@example.test', 'LINKCONTEXT_SUPERUSER_PASSWORD': secret('-' + secrets.token_urlsafe(24)),
+        'LINKCONTEXT_GOOGLE_CLIENT_ID': 'image-test.apps.googleusercontent.com',
+        'LINKCONTEXT_GOOGLE_CLIENT_SECRET': secret(secrets.token_urlsafe(24)),
+        'LINKCONTEXT_GOOGLE_WORKSPACE_DOMAIN': 'example.test',
+    }
+    env.update(extra or {})
+    return env
+
+
+def storage_fixture(tmp, network):
+    minio = network + "-minio"
+    # Independent bucket policies and credentials match production separation.
+    for role in ('files', 'replica'):
+        policy = {'Version': '2012-10-17', 'Statement': [
+            {'Effect': 'Allow', 'Action': ['s3:*'],
+             'Resource': [f'arn:aws:s3:::{role}', f'arn:aws:s3:::{role}/*']}]}
+        (tmp / (role + '.json')).write_text(json.dumps(policy))
+    docker('build', '-f', str(ROOT / 'docker/minio.Dockerfile'), '-t', MINIO_IMAGE,
+             str(ROOT / 'docker'), timeout=1200)
+    docker('network', 'create', network)
+    networks.append(network)
+    root_key, root_secret = secret('fixture-root'), secret(secrets.token_hex(24))
+    mc = {'MC_HOST_test': secret(f'http://{root_key}:{root_secret}@127.0.0.1:9000')}
+    containers.append(minio)
+    docker('run', '-d', '--name', minio, '--network', network,
+             '-v', str(tmp) + ':/fixtures:ro', '-e', 'MINIO_ROOT_USER', '-e', 'MINIO_ROOT_PASSWORD',
+             MINIO_IMAGE, 'server', '/data',
+             env={'MINIO_ROOT_USER': root_key, 'MINIO_ROOT_PASSWORD': root_secret})
+    for _ in range(45):
+        status, _ = docker('exec', '-e', 'MC_HOST_test', minio, 'mc', 'mb',
+            '--ignore-existing', 'test/files', 'test/replica', env=mc, ok=False)
+        if status == 0:
+            break
+        time.sleep(1)
+    else:
+        raise Failure('Synthetic MinIO did not become ready')
+    docker('exec', '-e', 'FIXTURE_ROOT_KEY', '-e', 'FIXTURE_ROOT_SECRET', minio,
+             'sh', '-c', 'mc alias set test http://127.0.0.1:9000 "$FIXTURE_ROOT_KEY" "$FIXTURE_ROOT_SECRET"',
+             env={'FIXTURE_ROOT_KEY': root_key, 'FIXTURE_ROOT_SECRET': root_secret})
+    keys = {}
+    for role in ('files', 'replica'):
+        key, password = secret('fixture-' + role), secret(secrets.token_hex(24))
+        keys[role] = (key, password)
+        env = {**mc, 'FIXTURE_KEY': key, 'FIXTURE_SECRET': password}
+        docker('exec', '-e', 'MC_HOST_test', '-e', 'FIXTURE_KEY', '-e', 'FIXTURE_SECRET',
+                 minio, 'sh', '-c', 'mc admin user add test "$FIXTURE_KEY" "$FIXTURE_SECRET"', env=env)
+        docker('exec', '-e', 'MC_HOST_test', minio, 'mc', 'admin', 'policy', 'create',
+                 'test', role, '/fixtures/' + role + '.json', env=mc)
+        docker('exec', '-e', 'MC_HOST_test', minio, 'mc', 'admin', 'policy', 'attach',
+                 'test', role, '--user', key, env=mc)
+    env = once_env({'LINKCONTEXT_S3_BUCKET': 'files',
+        'LINKCONTEXT_S3_ENDPOINT': f'http://{minio}:9000', 'LINKCONTEXT_S3_REGION': 'us-east-1',
+        'LINKCONTEXT_S3_ACCESS_KEY_ID': keys['files'][0], 'LINKCONTEXT_S3_SECRET_ACCESS_KEY': keys['files'][1],
+        'LITESTREAM_BUCKET': 'replica', 'LITESTREAM_PATH': 'synthetic/data',
+        'LITESTREAM_ENDPOINT': f'http://{minio}:9000', 'LITESTREAM_REGION': 'us-east-1',
+        'LITESTREAM_ACCESS_KEY_ID': keys['replica'][0], 'LITESTREAM_SECRET_ACCESS_KEY': keys['replica'][1],
+        'LITESTREAM_SYNC_INTERVAL': '1h'})
+    return env, minio
+
+
+def initialize(image, volume, env, network):
+    docker("volume", "create", volume)
+    args = ["run", "--rm", "--network", network, "-v", volume + ":/storage"]
+    for key in env:
+        args += ["-e", key]
+    try:
+        docker(*args, image, "init", env=env)
+    except Exception:
+        volumes.append(volume)
+        raise
+
+
+def smoke(image, tmp, run_id):
+    name, volume = f'lc-smoke-{run_id}', f'lc-smoke-{run_id}'
+    network = 'linkcontext-smoke-network-' + run_id
+    env, _ = storage_fixture(tmp, network)
+    initialize(image, volume, env, network)
+    user_email, user_password = 'user@example.test', secret(secrets.token_urlsafe(24))
+
+    step('starting the image with the ONCE variables, mandatory S3 and replication, a superuser, and a volume at /storage')
+    run_app(image, name, volume, env, network)
+    base = wait_up(name)
+    check(docker('exec', name, 'cat', '/proc/1/comm')[1].strip() == 'tini', 'PID 1 is tini')
+
+    step('settings taken from the environment, read with the superuser token')
+    token = superuser_token(base, env['LINKCONTEXT_SUPERUSER_EMAIL'], env['LINKCONTEXT_SUPERUSER_PASSWORD'])
+    status, _, settings = http('GET', base + '/api/settings', token=token)
+    check(status == 200, f'GET /api/settings answered 200 (got {status})')
+    check(settings['meta']['appURL'] == env['BASE_URL'], 'meta.appURL is BASE_URL')
+    check(settings['smtp']['enabled'] is True and settings['smtp']['host'] == env['SMTP_ADDRESS'], 'SMTP is enabled with SMTP_ADDRESS as host')
+    check(settings['rateLimits']['enabled'] is True, "rate limits are enabled by the image's default LINKCONTEXT_RATE_LIMITS=true")
+    check(env['SMTP_PASSWORD'] not in json.dumps(settings), 'the settings API does not return the SMTP password')
+
+    status, _, collection = http('GET', base + '/api/collections/users', token=token)
+    check(status == 200 and collection['oauth2']['enabled'], 'Google OAuth is enabled after migrations')
+    check(collection['oauth2']['providers'][0]['clientId'] == env['LINKCONTEXT_GOOGLE_CLIENT_ID'], 'Google client ID matches the environment')
+    check(env['LINKCONTEXT_GOOGLE_CLIENT_SECRET'] not in json.dumps(collection), 'the collection API does not return the Google secret')
+    check(collection['createRule'] == "@request.context = 'oauth2'" and collection['passwordAuth']['enabled'], 'OAuth-only signup rule and password login are preserved')
+
+    status, _, _ = http('POST', base + '/api/collections/users/records',
+                         {'email': 'public@example.test', 'name': 'Public signup',
+                          'password': 'SyntheticPublicPassword123!', 'passwordConfirm': 'SyntheticPublicPassword123!'})
+    check(status in (400, 403), 'public REST signup is denied despite the OAuth-only signup rule')
+
+    step('CORS: only BASE_URL is an allowed origin')
+    _, reply, _ = http('GET', base + '/api/health', headers={'Origin': env['BASE_URL']})
+    check(reply.get('Access-Control-Allow-Origin') == env['BASE_URL'], 'BASE_URL is allowed')
+    _, reply, _ = http('GET', base + '/api/health', headers={'Origin': 'https://other.example.test'})
+    check(reply.get('Access-Control-Allow-Origin') is None, 'another origin is not allowed')
+
+    step('provisioning an user and exercising authenticated endpoints against the container')
+    user_id = provision_user(base, token, user_email, user_password)
+    client = Client(base, user_email, user_password, tmp / 'home-smoke')
+    check(json.loads(client.run('whoami'))['id'] == user_id, 'ordinary user login returns the provisioned id')
+    client.run('check')
+    check(True, "authenticated schema endpoint is available")
+    company, unused = write_record(client, user_id)
+    check_records(client, company, unused)
+
+    check_logs(name)
+    stop(name)
+
+    step('starting the same container again: the volume keeps the data and the superuser upsert is repeatable')
+    docker('start', name)
+    base = wait_up(name)
+    client = Client(base, user_email, user_password, tmp / 'home-smoke-2')
+    check_records(client, company, unused)
+    text = check_logs(name)
+    check('pbinstall' not in text, 'the logs contain no superuser installation link')
+    step('freeze and restart the real container without rotating the operator token')
+    token = superuser_token(base, env['LINKCONTEXT_SUPERUSER_EMAIL'], env['LINKCONTEXT_SUPERUSER_PASSWORD'])
+    status, _, state = http('GET', base + '/api/context/maintenance', token=token)
+    check(status == 200 and state['state'] == 'writable', 'maintenance starts writable')
+    status, _, frozen = http('PUT', base + '/api/context/maintenance',
+                             {'readOnly': True, 'expectedGeneration': state['generation']}, token=token)
+    check(status == 200 and frozen['state'] == 'read_only', 'container enters drained read-only mode')
+    stop(name)
+    docker('start', name)
+    base = wait_up(name)
+    status, _, state = http('GET', base + '/api/context/maintenance', token=token)
+    check(status == 200 and state['state'] == 'read_only' and state['generation'] == frozen['generation'],
+          'frozen container restart preserves the operator token and maintenance generation')
+    status, _, _ = http('POST', base + '/api/collections/users/records', {}, token=token)
+    check(status == 503, 'frozen container rejects mutations')
+    status, _, state = http('PUT', base + '/api/context/maintenance',
+                            {'readOnly': False, 'expectedGeneration': frozen['generation']}, token=token)
+    check(status == 200 and state['state'] == 'writable', 'operator explicitly thaws the restarted container')
+    stop(name)
+
+
+def expect_startup_error(image, title, env, named, not_named=()):
+    step(title)
+    args = ['run', '--rm']
+    for key in env:
+        args += ['-e', key]
+    status, text = docker(*args, image, env=env, ok=False, timeout=120)
+    say('    output: ' + text.strip().replace('\n', '\n            '))
+    check(status != 0, f'exit status is not 0 (got {status})')
+    for variable in named:
+        check(variable in text, f'the error names {variable}')
+    for variable in not_named:
+        check(variable not in text, f'the error does not name {variable}, which is set')
+    check('Server started' not in text, 'the server did not start')
+    check_logs('this run', text)
+
+
+def config(image, tmp, run_id):
+    complete = {f'LINKCONTEXT_S3_{name}': 'files-' + name.lower() for name in
+                ('BUCKET', 'ENDPOINT', 'REGION', 'ACCESS_KEY_ID', 'SECRET_ACCESS_KEY')}
+    complete.update({f'LITESTREAM_{name}': 'replica-' + name.lower() for name in
+                     ('BUCKET', 'PATH', 'ACCESS_KEY_ID', 'SECRET_ACCESS_KEY')})
+    for name in complete:
+        env = dict(complete)
+        del env[name]
+        expect_startup_error(image, 'missing required ' + name, env, [name])
+    expect_startup_error(image, 'replication cannot be disabled',
+                         dict(complete, LITESTREAM_DISABLED='true'), ['replication is required'])
+    for left, right in [('LINKCONTEXT_SUPERUSER_EMAIL', 'LINKCONTEXT_SUPERUSER_PASSWORD'),
+                        ('LINKCONTEXT_GOOGLE_CLIENT_ID', 'LINKCONTEXT_GOOGLE_CLIENT_SECRET')]:
+        for key in (left, right):
+            expect_startup_error(image, 'unpaired ' + key, dict(complete, **{key:'synthetic'}), ['must be set together'])
+    env = dict(complete, LITESTREAM_ENDPOINT='http://127.0.0.1:9', LINKCONTEXT_S3_ENDPOINT='http://127.0.0.1:9')
+    name = 'linkcontext-config-' + run_id
+    run_app(image, name, name, env)
+    time.sleep(20)
+    running, code = state(name)
+    text = check_logs(name)
+    check('starting server' not in text and (running or code != 0), 'unreachable replica never starts a server')
+
+
+def restore(image, tmp, run_id):
+    network = 'linkcontext-drill-' + run_id
+    fixture, minio = storage_fixture(tmp, network)
+    bucket = fixture['LITESTREAM_BUCKET']
+    mc_env = {'MC_HOST_drill': secret('http://' + fixture['LITESTREAM_ACCESS_KEY_ID'] + ':' + fixture['LITESTREAM_SECRET_ACCESS_KEY'] + '@127.0.0.1:9000')}
+    user_email, user_password = 'user@example.test', secret(secrets.token_urlsafe(24))
+
+    def app_env(sync_interval):
+        return dict(fixture, LITESTREAM_SYNC_INTERVAL=sync_interval)
+
+    def replica_files():
+        text = docker('exec', '-e', 'MC_HOST_drill', minio, 'mc', 'ls', '--recursive', f'drill/{bucket}/synthetic/', env=mc_env, ok=False)[1]
+        say('    ' + text.strip().replace('\n', '\n    '))
+        return text.count('.ltx')
+
+    def destroy(name, volume):
+        docker('rm', '-f', '-v', name)
+        docker('volume', 'rm', volume)
+        volumes.remove(volume)
+        status, _ = docker('volume', 'inspect', '-f', '{{.Name}}', volume, ok=False)
+        check(status != 0, f'container {name} and volume {volume} are gone')
+
+    first, second, third = (f'lc-drill-{letter}-{run_id}' for letter in 'abc')
+
+    step('container A: empty volume, empty replica, sync every second')
+    env = app_env('1s')
+    initialize(image, first, env, network)
+    run_app(image, first, first, env, network)
+    base = wait_up(first)
+    token = superuser_token(base, env['LINKCONTEXT_SUPERUSER_EMAIL'], env['LINKCONTEXT_SUPERUSER_PASSWORD'])
+    user_id = provision_user(base, token, user_email, user_password)
+    client = Client(base, user_email, user_password, tmp / 'home-a')
+    company, unused = write_record(client, user_id)
+    step('waiting 10 seconds for the sync, then listing the replica')
+    time.sleep(10)
+    check(replica_files() > 0, 'the replica holds LTX files')
+    step('disaster: kill container A without a shutdown, remove it and its volume')
+    docker('kill', first)
+    text = check_logs(first)
+    check('database exists in the volume: no restore' in text, 'container A started from an empty replica')
+    destroy(first, first)
+
+    step('container B: empty volume, same replica, sync once an hour so that only the shutdown sync can save a late write')
+    env = app_env('1h')
+    run_app(image, second, second, env, network)
+    base = wait_up(second)
+    client = Client(base, user_email, user_password, tmp / 'home-b')
+    check(json.loads(client.run('whoami'))['id'] == user_id, 'the user logs in with its password after the restore')
+    check_records(client, company, unused)
+    client.run('check')
+    text = logs(second)
+    check('database restored and referenced remote files readable' in text, "Litestream's integrity check of the restored database passed")
+    superuser_token(base, env['LINKCONTEXT_SUPERUSER_EMAIL'], env['LINKCONTEXT_SUPERUSER_PASSWORD'])
+
+    step('a write immediately before docker stop must reach the replica through the shutdown sync')
+    late = json.loads(client.run('create', 'companies', json.dumps({'name': 'Written before stop'})))['id']
+    stop(second)
+    text = check_logs(second)
+    check('initial replica synchronization complete' in text, 'replica readiness is required before serving')
+    check('litestream shut down' in text, 'Litestream received the signal and shut down after the server')
+    destroy(second, second)
+
+    step('container C: empty volume again; the late write must be there')
+    run_app(image, third, third, app_env('1s'), network)
+    base = wait_up(third)
+    client = Client(base, user_email, user_password, tmp / 'home-c')
+    check_records(client, company, unused)
+    rows = client.sql(f"SELECT name FROM companies WHERE id = '{late}'")
+    check(rows == [['Written before stop']], f'the company written before the stop was restored (rows: {rows})')
+    check_logs(third)
+    stop(third)
+    check_logs(minio)
+
+
+def report_and_clean(failed):
+    if failed:
+        for name in containers:
+            if os.environ.get('GITHUB_ACTIONS') == 'true':
+                say(f'::group::logs of {name}')
+            text = logs(name)
+            say(f'---- logs of {name} (masked) ----')
+            say(text)
+            say(docker('inspect', '-f', 'running={{.State.Running}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}', name, ok=False)[1])
+            if os.environ.get('GITHUB_ACTIONS') == 'true':
+                say('::endgroup::')
+    step('cleaning up')
+    for name in containers:
+        docker('rm', '-f', '-v', name, ok=False)
+    for name in volumes:
+        docker('volume', 'rm', '-f', name, ok=False)
+    for name in networks:
+        docker('network', 'rm', name, ok=False)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('mode', choices=['smoke', 'config', 'restore'])
+    parser.add_argument('--image', required=True, help='image reference that `docker run` can resolve locally')
+    args = parser.parse_args()
+    failed = True
+    with tempfile.TemporaryDirectory(prefix='linkcontext-image-') as tmp:
+        try:
+            {'smoke': smoke, 'config': config, 'restore': restore}[args.mode](args.image, Path(tmp), secrets.token_hex(3))
+            failed = False
+        except Failure as error:
+            say(f'\nFAILED: {error}')
+        except Exception as error:
+            say(f'\nFAILED: unexpected {type(error).__name__}: {error}')
+        finally:
+            report_and_clean(failed)
+    say('FAILED' if failed else f'PASSED: {args.mode}')
+    return 1 if failed else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
