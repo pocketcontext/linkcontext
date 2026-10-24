@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["linkcontext-client @ git+https://github.com/pocketcontext/linkcontext.git@ec8ff5fe6ac6a3c643dc8069b0e7aff41f17a9e0"]
+# dependencies = ["linkcontext-client @ git+https://github.com/pocketcontext/linkcontext.git@0cd198fb523d2c7417c62c7c0926710d80be2e16"]
 # ///
 from pathlib import Path
 import sys
