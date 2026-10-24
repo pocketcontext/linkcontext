@@ -30,11 +30,12 @@ with server(args.binary) as request, tempfile.TemporaryDirectory(prefix='linkcon
     skill = Path(tmp) / 'portable'
     shutil.copytree(ROOT / 'skills/linkcontext', skill)
     env = {
-        **os.environ,
+        **{key: value for key, value in os.environ.items() if key != 'LINKCONTEXT_SESSION_DIR'},
         'UV_PYTHON': sys.executable,
         'UV_CACHE_DIR': str(Path(tmp) / 'uv-cache'),
         'HOME': tmp,
         'XDG_CACHE_HOME': str(Path(tmp) / 'cache'),
+        'XDG_STATE_HOME': str(Path(tmp) / 'state'),
         'LINKCONTEXT_URL': request.base_url,
         'LINKCONTEXT_USER_EMAIL': 'skill@example.com',
         'LINKCONTEXT_USER_PASSWORD': password,

@@ -31,6 +31,8 @@ Startup applies migrations and serves the authenticated reader UI at `http://loc
 
 Install or copy `skills/linkcontext` to `~/.agents/skills/linkcontext` (and symlink `~/.claude/skills/linkcontext`). The portable client (`linkcontext`) supports authenticated SQL reads, REST writes, deterministic ID generation, lookback windowing (`--since`), and idempotent upserts:
 
+The client saves its session privately in `$XDG_STATE_HOME/linkcontext/` (default `~/.local/state/linkcontext/`), or in `LINKCONTEXT_SESSION_DIR` when set. A session in the old `~/.cache/linkcontext/` location is moved there on first use, and `logout` removes both.
+
 ```sh
 export LINKCONTEXT_URL=http://127.0.0.1:8095
 export LINKCONTEXT_USER_EMAIL=agent@localhost.localdomain

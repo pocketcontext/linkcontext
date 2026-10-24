@@ -7,7 +7,7 @@ description: Ingest, deduplicate, browse, and cross-reference LinkedIn data (tim
 
 Paths in this file are relative to the directory containing this installed `SKILL.md`. Resolve `linkcontext` there and call it directly by its full absolute path (requires Python 3.11 or later) from any working directory. Before reporting the client missing, check that exact location, including when the skill is installed under `.agents/skills/linkcontext` or `.claude/skills/linkcontext`.
 
-Configure `LINKCONTEXT_URL` (default local server: `http://127.0.0.1:8095`, future hosted: `https://link.pocketcontext.com`) and `LINKCONTEXT_USER_EMAIL`. Set `LINKCONTEXT_USER_PASSWORD` for password authentication (standard for localhost operation), or run `login --google` when Google SSO is configured. Always use an ordinary `users` identity, never `_superusers` credentials.
+Configure `LINKCONTEXT_URL` (default local server: `http://127.0.0.1:8095`, future hosted: `https://link.pocketcontext.com`) and `LINKCONTEXT_USER_EMAIL`. Set `LINKCONTEXT_USER_PASSWORD` for password authentication (standard for localhost operation), or run `login --google` when Google SSO is configured. Always use an ordinary `users` identity, never `_superusers` credentials. The session token is saved with mode 0600 in `$XDG_STATE_HOME/linkcontext/` (default `~/.local/state/linkcontext/`), or in `LINKCONTEXT_SESSION_DIR` when set, so clearing `~/.cache` does not sign you out; a session left in `~/.cache/linkcontext/` by an older client is moved there on first use, and `logout` removes both. Keep session files private.
 
 Run `whoami` and `check` before operating a workspace.
 
