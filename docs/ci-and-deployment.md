@@ -12,7 +12,8 @@ uses exactly those two digests. All external actions are pinned to full commits.
 Remote deployment is disabled by default (`if: false && ...`) while LinkContext runs
 in localhost-first mode (`127.0.0.1:8095`). When remote deployment to
 `https://link.pocketcontext.com` is authorized in the future, it will use the
-shared `once-pocketcontext-v2` dispatcher and its app-specific restricted SSH key.
+`pocketdeploy-v2` scaffold's GitHub delivery and its app-specific restricted SSH key.
+The old-host `deploy/install.py` and deployment wrapper are removed.
 
 After source changes, run the repository's README validation and the isolated
 workflow checks:
