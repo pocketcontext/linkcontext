@@ -58,6 +58,8 @@ jobs:
         run: python3 linkcontext/tests/deploy.py --binary pocketcontext/bin/pocketcontext
       - name: Test installable skill
         run: python3 linkcontext/tests/skill.py --binary pocketcontext/bin/pocketcontext
+      - name: Saved CLI configuration
+        run: python3 linkcontext/tests/configuration.py
       - name: Test OAuth client
         run: python3 linkcontext/tests/oauth.py
       - name: Test opt-in trace isolation

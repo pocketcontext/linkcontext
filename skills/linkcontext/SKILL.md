@@ -7,7 +7,7 @@ description: Ingest, deduplicate, browse, and cross-reference LinkedIn data (tim
 
 Paths in this file are relative to the directory containing this installed `SKILL.md`. Resolve `linkcontext` there and call it directly by its full absolute path (requires Python 3.11 or later) from any working directory. Before reporting the client missing, check that exact location, including when the skill is installed under `.agents/skills/linkcontext` or `.claude/skills/linkcontext`.
 
-Configure `LINKCONTEXT_URL` (default local server: `http://127.0.0.1:8095`, future hosted: `https://link.pocketcontext.com`) and `LINKCONTEXT_USER_EMAIL`. Set `LINKCONTEXT_USER_PASSWORD` for password authentication (standard for localhost operation), or run `login --google` when Google SSO is configured. Always use an ordinary `users` identity, never `_superusers` credentials. The session token is saved with mode 0600 in `$XDG_STATE_HOME/linkcontext/` (default `~/.local/state/linkcontext/`), or in `LINKCONTEXT_SESSION_DIR` when set, so clearing `~/.cache` does not sign you out; a session left in `~/.cache/linkcontext/` by an older client is moved there on first use, and `logout` removes both. Keep session files private.
+Provide `--url http://127.0.0.1:8095` and `--email` on first login; later commands use saved defaults. Set `LINKCONTEXT_USER_PASSWORD` for password authentication (standard for localhost operation), or run `login --google` when Google SSO is configured. Always use an ordinary `users` identity, never `_superusers` credentials. The session token is saved with mode 0600 in `$XDG_STATE_HOME/linkcontext/` (default `~/.local/state/linkcontext/`), or in `LINKCONTEXT_SESSION_DIR` when set, so clearing `~/.cache` does not sign you out. Keep session files private.
 
 Run `whoami` and `check` before operating a workspace.
 
@@ -35,3 +35,11 @@ Every record has a deterministic 15-character ID and a permanent reader link at 
 ## Optional Performance Tracing
 
 When the user requests tracing, follow [references/tracing.md](references/tracing.md).
+
+## Saved CLI login settings
+
+Sign in once with `linkcontext login --google --url https://your-server.example --email you@example.com`, or use `--password` with `LINKCONTEXT_USER_PASSWORD` for a provisioned password account. The password is supplied through the environment, never as a CLI argument.
+
+URL and email resolve from CLI options, then `LINKCONTEXT_URL` / `LINKCONTEXT_USER_EMAIL`, then saved defaults. `--url` and `--email` work before or after the command. Later commands need no URL/email exports. Successful explicit login writes `default.json` containing only URL and email alongside the per-account token file in `$XDG_STATE_HOME/linkcontext/` (default `~/.local/state/linkcontext/`), or `LINKCONTEXT_SESSION_DIR`. Files use mode 0600 and the directory 0700. Ordinary commands and token refresh never change the default account. Tokens are selected only for the exact resolved server/email pair.
+
+`linkcontext logout` removes the selected token and retains settings for the next login. `linkcontext logout --forget` also removes the default when it matches that account; other accounts remain untouched. Old cache sessions are not migrated: sign in again. A malformed or unsafe default file must be fixed or removed before continuing.

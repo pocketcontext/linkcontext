@@ -31,14 +31,12 @@ Startup applies migrations and serves the authenticated reader UI at `http://loc
 
 Install or copy `skills/linkcontext` to `~/.agents/skills/linkcontext` (and symlink `~/.claude/skills/linkcontext`). The portable client (`linkcontext`) supports authenticated SQL reads, REST writes, deterministic ID generation, lookback windowing (`--since`), and idempotent upserts:
 
-The client saves its session privately in `$XDG_STATE_HOME/linkcontext/` (default `~/.local/state/linkcontext/`), or in `LINKCONTEXT_SESSION_DIR` when set. A session in the old `~/.cache/linkcontext/` location is moved there on first use, and `logout` removes both.
+The client saves its session privately in `$XDG_STATE_HOME/linkcontext/` (default `~/.local/state/linkcontext/`), or in `LINKCONTEXT_SESSION_DIR` when set.
 
 ```sh
-export LINKCONTEXT_URL=http://127.0.0.1:8095
-export LINKCONTEXT_USER_EMAIL=agent@localhost.localdomain
 export LINKCONTEXT_USER_PASSWORD='YourLocalAgentPassword123!'
 
-"/absolute/path/to/skills/linkcontext/linkcontext" login
+"/absolute/path/to/skills/linkcontext/linkcontext" login --password --url http://127.0.0.1:8095 --email agent@localhost.localdomain
 "/absolute/path/to/skills/linkcontext/linkcontext" whoami
 "/absolute/path/to/skills/linkcontext/linkcontext" check
 
@@ -89,6 +87,7 @@ python3 tests/deploy.py --binary /absolute/path/to/pocketcontext
 python3 tests/maintenance.py --binary /absolute/path/to/pocketcontext
 python3 tests/object_storage.py --binary /absolute/path/to/pocketcontext
 python3 tests/reader.py --binary /absolute/path/to/pocketcontext --browser
+python3 tests/configuration.py
 python3 tests/oauth.py
 python3 tests/packaging.py
 python3 tests/entrypoint.py
@@ -105,3 +104,11 @@ When an intentional schema change occurs, run `tests/skill.py --binary ... --wri
 - [Container runtime](docs/container-runtime.md)
 - [CI and deployment](docs/ci-and-deployment.md)
 - [Implementation status](docs/implementation.md)
+
+## Saved CLI login settings
+
+Sign in once with `linkcontext login --google --url https://your-server.example --email you@example.com`, or use `--password` with `LINKCONTEXT_USER_PASSWORD` for a provisioned password account. The password is supplied through the environment, never as a CLI argument.
+
+URL and email resolve from CLI options, then `LINKCONTEXT_URL` / `LINKCONTEXT_USER_EMAIL`, then saved defaults. `--url` and `--email` work before or after the command. Later commands need no URL/email exports. Successful explicit login writes `default.json` containing only URL and email alongside the per-account token file in `$XDG_STATE_HOME/linkcontext/` (default `~/.local/state/linkcontext/`), or `LINKCONTEXT_SESSION_DIR`. Files use mode 0600 and the directory 0700. Ordinary commands and token refresh never change the default account. Tokens are selected only for the exact resolved server/email pair.
+
+`linkcontext logout` removes the selected token and retains settings for the next login. `linkcontext logout --forget` also removes the default when it matches that account; other accounts remain untouched. Old cache sessions are not migrated: sign in again. A malformed or unsafe default file must be fixed or removed before continuing.
