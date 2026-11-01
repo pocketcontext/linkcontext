@@ -47,6 +47,10 @@ with server(args.binary) as request, tempfile.TemporaryDirectory(prefix='linkcon
         assert result.returncode == expected, (argv, result.stdout, result.stderr)
         return result.stdout
 
+    env.pop('LINKCONTEXT_URL')
+    env.pop('LINKCONTEXT_USER_EMAIL')
+    cli('login', '--password', '--url', request.base_url, '--email', 'skill@example.com')
+    env.pop('LINKCONTEXT_USER_PASSWORD')
     cli('whoami')
     cli('check')
 
