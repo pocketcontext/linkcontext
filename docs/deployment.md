@@ -32,3 +32,13 @@ python3 tests/oauth_integration.py --binary /path/to/pocketcontext
 python3 tests/deploy.py --binary /path/to/pocketcontext
 python3 tests/deploy_workflow.py
 ```
+
+## Litestream cleanup cadence
+
+The container checks for expired L0 files every five minutes
+(`l0-retention-check-interval: 5m`) to reduce object-store listing requests.
+This delays cleanup of eligible files and can temporarily retain more local and
+remote files. Replication still defaults to `10s`; compaction, snapshot retention
+and L0 deletion eligibility are unchanged. Successful L1 compaction can also
+trigger cleanup. The longer check interval is an intentional departure from
+Litestream’s default cleanup cadence for this backup-only deployment.
